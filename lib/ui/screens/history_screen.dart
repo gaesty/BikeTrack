@@ -5,11 +5,22 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Placeholder - à connecter au backend plus tard
     return Scaffold(
-      appBar: AppBar(title: const Text("Historique des trajets")),
-      body: const Center(
-        child: Text("Aucun trajet enregistré."),
+      appBar: AppBar(title: const Text("Ride History")),
+      body: Column(
+        children: [
+          const CalendarDatePicker(
+            firstDate: DateTime(2023),
+            lastDate: DateTime.now(),
+            initialDate: DateTime.now(),
+            onDateChanged: (value) {},
+          ),
+          const ListTile(
+            title: Text("25 juillet 2024"),
+            subtitle: Text("5:29 PM - 5:48 PM"),
+            trailing: Icon(Icons.chevron_right),
+          ),
+        ],
       ),
     );
   }

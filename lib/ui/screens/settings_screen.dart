@@ -6,12 +6,20 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Réglages")),
+      appBar: AppBar(title: const Text("Settings")),
       body: ListView(
         children: const [
-          ListTile(title: Text("Notifications"), trailing: Icon(Icons.chevron_right)),
-          ListTile(title: Text("Alertes de choc"), trailing: Icon(Icons.chevron_right)),
-          ListTile(title: Text("Zones de sécurité"), trailing: Icon(Icons.chevron_right)),
+          ListTile(title: Text("Impact Sensitivity"), subtitle: Text("Medium")),
+          ListTile(title: Text("Movement Sensitivity"), subtitle: Text("Low")),
+          SwitchListTile(title: Text("Push Notifications"), value: true, onChanged: null),
+          Divider(),
+          ListTile(title: Text("Edit Profile")),
+          ListTile(title: Text("Change Password")),
+          ListTile(title: Text("Delete Account")),
+          Divider(),
+          ListTile(title: Text("Dark Mode")),
+          ListTile(title: Text("Help")),
+          ListTile(title: Text("Log Out")),
         ],
       ),
     );
