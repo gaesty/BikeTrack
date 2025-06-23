@@ -9,11 +9,13 @@ class HistoryScreen extends StatelessWidget {
       appBar: AppBar(title: const Text("Ride History")),
       body: Column(
         children: [
-          const CalendarDatePicker(
+          CalendarDatePicker(
             firstDate: DateTime(2023),
             lastDate: DateTime.now(),
             initialDate: DateTime.now(),
-            onDateChanged: (value) {},
+            onDateChanged: (value) {
+              // handle date change
+            },
           ),
           const ListTile(
             title: Text("25 juillet 2024"),

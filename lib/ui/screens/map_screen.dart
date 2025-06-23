@@ -32,7 +32,10 @@ class _MapScreenState extends State<MapScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Localisation en temps réel")),
       body: GoogleMap(
-        initialCameraPosition: CameraPosition(target: _currentPosition, zoom: 15),
+        initialCameraPosition: CameraPosition(
+          target: _currentPosition,
+          zoom: 15,
+        ),
         markers: {
           Marker(markerId: const MarkerId('moto'), position: _currentPosition),
         },

@@ -11,7 +11,11 @@ class SettingsScreen extends StatelessWidget {
         children: const [
           ListTile(title: Text("Impact Sensitivity"), subtitle: Text("Medium")),
           ListTile(title: Text("Movement Sensitivity"), subtitle: Text("Low")),
-          SwitchListTile(title: Text("Push Notifications"), value: true, onChanged: null),
+          SwitchListTile(
+            title: Text("Push Notifications"),
+            value: true,
+            onChanged: null,
+          ),
           Divider(),
           ListTile(title: Text("Edit Profile")),
           ListTile(title: Text("Change Password")),

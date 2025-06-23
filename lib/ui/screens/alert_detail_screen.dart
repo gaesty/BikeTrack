@@ -12,9 +12,14 @@ class AlertDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Mouvement détecté", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              "Mouvement détecté",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 10),
-            Text("Nous avons détecté un mouvement de votre moto. Vérifiez que tout va bien."),
+            Text(
+              "Nous avons détecté un mouvement de votre moto. Vérifiez que tout va bien.",
+            ),
             SizedBox(height: 20),
             ElevatedButton(onPressed: null, child: Text("Voir l'alerte")),
             TextButton(onPressed: null, child: Text("Désactiver les alertes")),

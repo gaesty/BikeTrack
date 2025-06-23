@@ -9,7 +9,11 @@ class SafetyScreen extends StatelessWidget {
       appBar: AppBar(title: const Text("Safety Center")),
       body: ListView(
         children: const [
-          SwitchListTile(title: Text("Automatic alerts"), value: true, onChanged: null),
+          SwitchListTile(
+            title: Text("Automatic alerts"),
+            value: true,
+            onChanged: null,
+          ),
           ListTile(title: Text("Add emergency contact")),
           ListTile(title: Text("Edit emergency contacts")),
           Divider(),

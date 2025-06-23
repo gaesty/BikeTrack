@@ -39,21 +39,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bottomNavigationBar: BottomNavigationBar(
         onTap: (index) {
           if (index == 1) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const MapScreen()));
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MapScreen()),
+            );
           } else if (index == 2) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const HistoryScreen()));
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HistoryScreen()),
+            );
           } else if (index == 3) {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            );
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Carte'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Historique'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Réglages'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'Historique',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Réglages',
+          ),
         ],
       ),
     );
   }
 }
-

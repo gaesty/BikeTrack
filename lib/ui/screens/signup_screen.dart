@@ -14,7 +14,10 @@ class SignupScreen extends StatelessWidget {
             const Text("Create Account", style: TextStyle(fontSize: 24)),
             TextField(decoration: InputDecoration(labelText: 'Username')),
             TextField(decoration: InputDecoration(labelText: 'Email')),
-            TextField(decoration: InputDecoration(labelText: 'Password'), obscureText: true),
+            TextField(
+              decoration: InputDecoration(labelText: 'Password'),
+              obscureText: true,
+            ),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: () {}, child: const Text('Sign up')),
           ],
