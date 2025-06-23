@@ -3,6 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    tz.initializeTimeZones(); // <- Initialisation timezone
     fetchTrajectory();
   }
 
@@ -94,11 +97,15 @@ class _HomeScreenState extends State<HomeScreen> {
         distanceKm += calc(points[i], points[i + 1]) / 1000;
       }
 
+      final paris = tz.getLocation('Europe/Paris'); // <- Fuseau Paris
+      final timestampUtc = DateTime.parse(lastTrajet.last['timestamp'].toString()).toUtc();
+      final parisTime = tz.TZDateTime.from(timestampUtc, paris);
+
       setState(() {
         path = points;
         startPoint = points.first;
         endPoint = points.last;
-        date = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(lastTrajet.last['timestamp'].toString()));
+        date = DateFormat('dd/MM/yyyy HH:mm').format(parisTime); // <- Affichage Paris
         totalDistance = distanceKm;
       });
 
