@@ -49,13 +49,6 @@ class _MainScreenState extends State<MainScreen> {
     SettingsScreen(),
   ];
 
-  static const List<String> _titles = [
-    'Accueil',
-    'Historique',
-    'Détection de Choc',
-    'Paramètres',
-  ];
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
