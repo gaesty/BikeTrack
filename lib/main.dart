@@ -6,6 +6,9 @@ import 'package:biketrack/ui/screens/history_screen.dart';
 import 'package:biketrack/ui/screens/alerts_screen.dart';
 import 'package:biketrack/ui/screens/settings_screen.dart';
 
+import 'package:biketrack/ui/screens/login_screen.dart';  // import login
+import 'package:biketrack/ui/screens/signup_screen.dart'; // import signup (optionnel ici)
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -18,16 +21,55 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _loading = true;
+  bool _loggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    setState(() {
+      _loggedIn = session != null;
+      _loading = false;
+    });
+
+    // Optionnel : Écoute des changements de session (ex: logout)
+    Supabase.instance.client.auth.onAuthStateChange.listen((event) {
+      final session = Supabase.instance.client.auth.currentSession;
+      setState(() {
+        _loggedIn = session != null;
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      // Écran de chargement simple
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     return MaterialApp(
       title: 'BikeTrack',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MainScreen(),
       debugShowCheckedModeBanner: false,
+      home: _loggedIn ? const MainScreen() : const LoginPage(),
     );
   }
 }

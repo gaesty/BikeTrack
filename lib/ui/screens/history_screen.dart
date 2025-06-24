@@ -35,7 +35,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       groupedByDevice[deviceId]!.add(row);
     }
 
-    List<Map<String, dynamic>>? selectedDeviceData = groupedByDevice['A7670E_001'];
+    List<Map<String, dynamic>>? selectedDeviceData = groupedByDevice['A7670E_002'];
     if (selectedDeviceData == null || selectedDeviceData.isEmpty) return;
 
     List<List<Map<String, dynamic>>> trajets = [];
