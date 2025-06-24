@@ -7,13 +7,14 @@ import 'dart:math' as math;
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
   List<TrajetInfo> trajetsInfos = [];
-  DateTime? selectedDateTime;
+  DateTimeRange? selectedRange;
   String? errorMessage;
   bool isLoading = true;
 
@@ -35,25 +36,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) throw 'Utilisateur non connecté';
 
-      // Récupération du device_id
       final userRow = await supabase
           .from('users')
           .select('device_id')
           .eq('id', user.id)
           .maybeSingle();
-      final deviceId =
-          (userRow as Map<String, dynamic>?)?['device_id'] as String?;
-      if (deviceId == null || deviceId.isEmpty) {
-        throw 'Aucun appareil associé';
-      }
+      final deviceId = (userRow as Map<String, dynamic>?)?['device_id'] as String?;
+      if (deviceId == null || deviceId.isEmpty) throw 'Aucun appareil associé';
 
-      // Lecture des données pour ce device_id
       final raw = await supabase
           .from('sensor_data')
           .select()
           .eq('device_id', deviceId)
           .order('timestamp', ascending: true);
-
       final rows = List<Map<String, dynamic>>.from(raw as List);
       if (rows.isEmpty) throw 'Pas de données GPS';
 
@@ -74,22 +69,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
       if (current.isNotEmpty) sessions.add(current);
 
-      // Filtre ≥2 points GPS valides
-      final valid = sessions.where((sess) {
-        final pts = sess
-            .map((r) => LatLng(
-                  double.tryParse(r['latitude'].toString()) ?? 0,
-                  double.tryParse(r['longitude'].toString()) ?? 0,
-                ))
-            .where((p) => p.latitude != 0 && p.longitude != 0)
-            .toList();
-        return pts.length >= 2;
-      }).toList();
-      if (valid.isEmpty) throw 'Aucune session valide';
+      // Filtrer selon range (date + heure)
+      final List<TrajetInfo> infos = [];
+      for (final trajet in sessions.reversed) {
+        final startT = DateTime.tryParse(trajet.first['timestamp']);
+        if (selectedRange != null &&
+            (startT == null ||
+             startT.isBefore(selectedRange!.start) ||
+             startT.isAfter(selectedRange!.end))) {
+          continue;
+        }
 
-      // Construction de la liste
-      List<TrajetInfo> infos = [];
-      for (final trajet in valid.reversed) {
         final pts = trajet
             .map((r) => LatLng(
                   double.tryParse(r['latitude'].toString()) ?? 0,
@@ -99,22 +89,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
             .toList();
         if (pts.length < 2) continue;
 
-        // Distance
         final calc = const Distance();
         double dist = 0;
         for (var i = 0; i < pts.length - 1; i++) {
           dist += calc(pts[i], pts[i + 1]);
         }
 
-        // Horaires
-        final startT = DateTime.tryParse(trajet.first['timestamp']);
         final endT = DateTime.tryParse(trajet.last['timestamp']);
-        if (selectedDateTime != null &&
-            (startT == null || startT.isBefore(selectedDateTime!))) {
-          continue;
-        }
 
-        // Vitesses & inclinaisons
         double sumV = 0, maxV = 0;
         int countV = 0;
         double sumI = 0, maxI = 0;
@@ -165,29 +147,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  Future<void> _selectDateTime(BuildContext context) async {
-    final d = await showDatePicker(
+  Future<void> _pickRange(BuildContext context) async {
+    final range = await showDateRangePicker(
       context: context,
-      initialDate: selectedDateTime ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
+      initialDateRange: selectedRange,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.blue, // header background color
+              onPrimary: Colors.white, // header text color
+              onSurface: Colors.black, // body text color
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
-    if (d == null) return;
-    final t = await showTimePicker(
-      context: context,
-      initialTime: selectedDateTime != null
-          ? TimeOfDay.fromDateTime(selectedDateTime!)
-          : TimeOfDay.now(),
+    if (range == null) return;
+
+    // Pour filtrer heure, on garde la date range + ajoute l'heure max/min pour inclure toute la journée sélectionnée
+    final newRange = DateTimeRange(
+      start: DateTime(range.start.year, range.start.month, range.start.day, 0, 0, 0),
+      end: DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59),
     );
-    if (t == null) return;
-    setState(() {
-      selectedDateTime = DateTime(d.year, d.month, d.day, t.hour, t.minute);
-    });
+
+    setState(() => selectedRange = newRange);
     fetchTrajets();
   }
 
   void _clearFilter() {
-    selectedDateTime = null;
+    setState(() {
+      selectedRange = null;
+    });
     fetchTrajets();
   }
 
@@ -201,138 +195,143 @@ class _HistoryScreenState extends State<HistoryScreen> {
       body: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 70),
-            child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 80),
+            child: ListView(
               padding: const EdgeInsets.all(12),
-              itemCount: trajetsInfos.length,
-              itemBuilder: (ctx, i) {
-                final t = trajetsInfos[i];
-                final pts = t.data
-                    .map((r) => LatLng(
-                          double.tryParse(r['latitude'].toString()) ?? 0,
-                          double.tryParse(r['longitude'].toString()) ?? 0,
-                        ))
-                    .where((p) => p.latitude != 0 && p.longitude != 0)
-                    .toList();
-
-                return Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  child: Theme(
-                    // rend les divider de l'ExpansionTile transparents
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      title: Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('📅 Début : ${t.dateStart}',
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                                Text('📅 Fin   : ${t.dateEnd}',
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: Align(
-                              alignment: Alignment.topRight,
-                              child: Text('📏 ${t.distanceKm.toStringAsFixed(2)} km',
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                            ),
-                          ),
-                        ],
-                      ),
+              children: [
+                if (selectedRange != null)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // carte avec markers
-                        Container(
-                          height: 150,
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: FlutterMap(
-                              options: MapOptions(
-                                center: pts.first,
-                                zoom: 15,
-                                interactiveFlags: InteractiveFlag.none,
-                              ),
-                              children: [
-                                TileLayer(
-                                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                  userAgentPackageName: 'com.example.app',
-                                ),
-                                if (pts.length > 1)
-                                  PolylineLayer(polylines: [
-                                    Polyline(points: pts, strokeWidth: 4.0),
-                                  ]),
-                                MarkerLayer(markers: [
-                                  Marker(
-                                    point: pts.first,
-                                    width: 30,
-                                    height: 30,
-                                    child: const Icon(Icons.place, color: Colors.green),
-                                  ),
-                                  Marker(
-                                    point: pts.last,
-                                    width: 30,
-                                    height: 30,
-                                    child: const Icon(Icons.place, color: Colors.red),
-                                  ),
-                                ]),
-                              ],
-                            ),
+                        Flexible(
+                          child: Text(
+                            'Filtre : ${DateFormat('dd/MM/yyyy HH:mm').format(selectedRange!.start)} ↔ ${DateFormat('dd/MM/yyyy HH:mm').format(selectedRange!.end)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
-
-                        // stats alignées à gauche
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('🚀 Vitesse moy.  : ${t.avgSpeed.toStringAsFixed(1)} km/h'),
-                              Text('🏎️ Vitesse max  : ${t.maxSpeed.toStringAsFixed(1)} km/h'),
-                              Text('🧭 Inclinaison moy. : ${t.avgInclination.toStringAsFixed(1)}°'),
-                              Text('📐 Inclinaison max : ${t.maxInclination.toStringAsFixed(1)}°'),
-                            ],
-                          ),
+                        IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: _clearFilter,
                         ),
                       ],
                     ),
                   ),
-                );
-              },
+                ...trajetsInfos.map((t) {
+                  final pts = t.data
+                      .map((r) => LatLng(
+                            double.tryParse(r['latitude'].toString()) ?? 0,
+                            double.tryParse(r['longitude'].toString()) ?? 0,
+                          ))
+                      .where((p) => p.latitude != 0 && p.longitude != 0)
+                      .toList();
+                  return Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding:
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        collapsedShape:
+                            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        childrenPadding:
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('📅 Début : ${t.dateStart}'),
+                                  Text('📅 Fin   : ${t.dateEnd}'),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: Text('📏 ${t.distanceKm.toStringAsFixed(2)} km'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        children: [
+                          Container(
+                            height: 150,
+                            margin: const EdgeInsets.symmetric(vertical: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: FlutterMap(
+                                options: MapOptions(
+                                    center: pts.first, zoom: 15, interactiveFlags: InteractiveFlag.none),
+                                children: [
+                                  TileLayer(
+                                    urlTemplate:
+                                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                    userAgentPackageName: 'app',
+                                  ),
+                                  if (pts.length > 1)
+                                    PolylineLayer(
+                                        polylines: [Polyline(points: pts, strokeWidth: 4)]),
+                                  MarkerLayer(
+                                    markers: [
+                                      Marker(
+                                          point: pts.first,
+                                          width: 30,
+                                          height: 30,
+                                          child:
+                                              const Icon(Icons.place, color: Colors.green)),
+                                      Marker(
+                                          point: pts.last,
+                                          width: 30,
+                                          height: 30,
+                                          child: const Icon(Icons.place, color: Colors.red)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('🚀 Vitesse moy.  : ${t.avgSpeed.toStringAsFixed(1)} km/h'),
+                                Text('🏎️ Vitesse max  : ${t.maxSpeed.toStringAsFixed(1)} km/h'),
+                                Text('🧭 Inclinaison moy. : ${t.avgInclination.toStringAsFixed(1)}°'),
+                                Text('📐 Inclinaison max : ${t.maxInclination.toStringAsFixed(1)}°'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
-
-          // boutons filtre
           Positioned(
-            bottom: 10,
-            right: 10,
-            child: Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => _selectDateTime(context),
-                  icon: const Icon(Icons.filter_alt),
-                  label: const Text('Filtrer date'),
-                ),
-                if (selectedDateTime != null) ...[
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: _clearFilter,
-                    icon: const Icon(Icons.clear),
-                    label: const Text('Effacer filtre'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                  ),
-                ],
-              ],
+            bottom: 20,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ElevatedButton.icon(
+                onPressed: () => _pickRange(context),
+                icon: const Icon(Icons.calendar_today),
+                label: const Text('Période'),
+              ),
             ),
           ),
         ],

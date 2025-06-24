@@ -116,7 +116,7 @@ class _MainScreenState extends State<MainScreen> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.directions_bike),
-            label: 'Détection de Choc',
+            label: 'Alertes',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
