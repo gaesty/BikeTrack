@@ -20,106 +20,133 @@ class _HomeScreenState extends State<HomeScreen> {
   LatLng? endPoint;
   String date = '';
   double totalDistance = 0.0;
+  bool isLoading = true;
+  String? errorMessage;
 
   @override
   void initState() {
     super.initState();
-    tz.initializeTimeZones(); // <- Initialisation timezone
+    tz.initializeTimeZones();
     fetchTrajectory();
   }
 
   Future<void> fetchTrajectory() async {
-    final response = await Supabase.instance.client
-        .from('sensor_data')
-        .select()
-        .order('timestamp', ascending: true);
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
 
-    Map<String, List<Map<String, dynamic>>> groupedByDevice = {};
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) throw 'Utilisateur non connecté';
 
-    for (var row in response) {
-      final deviceId = row['device_id'] ?? 'unknown';
-      groupedByDevice.putIfAbsent(deviceId, () => []);
-      groupedByDevice[deviceId]!.add(row);
-    }
+      // 1) Récupère device_id
+      final userRow = await supabase
+          .from('users')
+          .select('device_id')
+          .eq('id', user.id)
+          .maybeSingle();
+      final deviceId =
+          (userRow as Map<String, dynamic>?)?['device_id'] as String?;
+      if (deviceId == null || deviceId.isEmpty) {
+        throw 'Aucun device associé à l’utilisateur';
+      }
 
-    List<Map<String, dynamic>>? selectedDeviceData = groupedByDevice['A7670E_001'];
+      // 2) Récupère points valides
+      final raw = await supabase
+          .from('sensor_data')
+          .select()
+          .eq('device_id', deviceId)
+          .eq('gps_valid', true)
+          .order('timestamp', ascending: true);
+      final rows = List<Map<String, dynamic>>.from(raw as List);
+      if (rows.isEmpty) throw 'Pas de données GPS valides';
 
-    if (selectedDeviceData == null || selectedDeviceData.isEmpty) return;
-
-    List<List<Map<String, dynamic>>> trajets = [];
-    List<Map<String, dynamic>> currentTrajet = [];
-    int? lastUptime;
-
-    for (var row in selectedDeviceData) {
-      int? uptime = row['uptime_seconds'];
-
-      if (uptime == null || (lastUptime != null && uptime < lastUptime)) {
-        if (currentTrajet.isNotEmpty) {
-          trajets.add(currentTrajet);
-          currentTrajet = [];
+      // 3) Découpe en sessions
+      List<List<Map<String, dynamic>>> sessions = [];
+      List<Map<String, dynamic>> current = [];
+      int? lastUptime;
+      for (final row in rows) {
+        final uptime = row['uptime_seconds'] as int?;
+        if (uptime == null || (lastUptime != null && uptime < lastUptime)) {
+          if (current.isNotEmpty) {
+            sessions.add(current);
+            current = [];
+          }
         }
+        current.add(row);
+        lastUptime = uptime;
       }
+      if (current.isNotEmpty) sessions.add(current);
 
-      currentTrajet.add(row);
-      lastUptime = uptime;
-    }
+      // 4) Filtre sessions ≥2 points
+      final valid = sessions.where((sess) {
+        final pts = sess
+            .map((r) => LatLng(
+                  double.tryParse(r['latitude'].toString()) ?? 0,
+                  double.tryParse(r['longitude'].toString()) ?? 0,
+                ))
+            .where((p) => p.latitude != 0 && p.longitude != 0)
+            .toList();
+        return pts.length >= 2;
+      }).toList();
+      if (valid.isEmpty) throw 'Aucune session valide';
 
-    if (currentTrajet.isNotEmpty) {
-      trajets.add(currentTrajet);
-    }
+      // 5) Prend dernière session
+      final lastSession = valid.last;
+      final points = lastSession
+          .map((r) => LatLng(
+                double.tryParse(r['latitude'].toString()) ?? 0,
+                double.tryParse(r['longitude'].toString()) ?? 0,
+              ))
+          .toList();
 
-    final trajetsValides = trajets.where((trajet) {
-      final points = trajet.map<LatLng>((row) {
-        return LatLng(
-          double.tryParse(row['latitude'].toString()) ?? 0.0,
-          double.tryParse(row['longitude'].toString()) ?? 0.0,
-        );
-      }).where((p) => p.latitude != 0 && p.longitude != 0).toList();
-      return points.length >= 2;
-    }).toList();
-
-    if (trajetsValides.isEmpty) return;
-
-    final lastTrajet = trajetsValides.last;
-
-    final points = lastTrajet.map<LatLng>((row) {
-      return LatLng(
-        double.tryParse(row['latitude'].toString()) ?? 0.0,
-        double.tryParse(row['longitude'].toString()) ?? 0.0,
-      );
-    }).where((p) => p.latitude != 0 && p.longitude != 0).toList();
-
-    if (points.isNotEmpty) {
-      double distanceKm = 0.0;
-      final Distance calc = const Distance();
-
+      // 6) Calcule distance
+      double distKm = 0;
+      const calc = Distance();
       for (int i = 0; i < points.length - 1; i++) {
-        distanceKm += calc(points[i], points[i + 1]) / 1000;
+        distKm += calc(points[i], points[i + 1]) / 1000;
       }
 
-      final paris = tz.getLocation('Europe/Paris'); // <- Fuseau Paris
-      final timestampUtc = DateTime.parse(lastTrajet.last['timestamp'].toString()).toUtc();
-      final parisTime = tz.TZDateTime.from(timestampUtc, paris);
+      // 7) Convertit timestamp
+      final paris = tz.getLocation('Europe/Paris');
+      final utc = DateTime.parse(lastSession.last['timestamp'].toString())
+          .toUtc();
+      final tzTime = tz.TZDateTime.from(utc, paris);
 
+      // 8) Mise à jour UI
       setState(() {
         path = points;
         startPoint = points.first;
         endPoint = points.last;
-        date = DateFormat('dd/MM/yyyy HH:mm').format(parisTime); // <- Affichage Paris
-        totalDistance = distanceKm;
+        date = DateFormat('dd/MM/yyyy HH:mm').format(tzTime);
+        totalDistance = distKm;
+        isLoading = false;
       });
 
-      Future.delayed(const Duration(milliseconds: 100), () {
-        _mapController.fitBounds(
-          LatLngBounds.fromPoints(points),
-          options: const FitBoundsOptions(padding: EdgeInsets.all(40)),
-        );
+      // 9) FitBounds dès que possible
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (path.isNotEmpty) {
+          _mapController.fitBounds(
+            LatLngBounds.fromPoints(path),
+            options: const FitBoundsOptions(padding: EdgeInsets.all(40)),
+          );
+        }
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) return const Center(child: CircularProgressIndicator());
+    if (errorMessage != null) return Center(child: Text('Erreur : $errorMessage'));
+
     return Column(
       children: [
         SizedBox(
@@ -127,45 +154,41 @@ class _HomeScreenState extends State<HomeScreen> {
           child: FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: const LatLng(48.8566, 2.3522),
-              initialZoom: 13.0,
+              center: path.isNotEmpty
+                  ? path.first
+                  : const LatLng(48.8566, 2.3522),
+              initialZoom: 16.0,
             ),
             children: [
               TileLayer(
-                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.app',
+                retinaMode: true,
               ),
               if (path.length > 1)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: path,
-                      strokeWidth: 4.0,
-                      color: Colors.blue,
-                    ),
-                  ],
-                ),
-              MarkerLayer(
-                markers: [
-                  if (startPoint != null)
-                    Marker(
-                      point: startPoint!,
-                      width: 30,
-                      height: 30,
-                      child: const Icon(Icons.flag, color: Colors.green, size: 30),
-                    ),
-                  if (endPoint != null)
-                    Marker(
-                      point: endPoint!,
-                      width: 30,
-                      height: 30,
-                      child: const Icon(Icons.flag, color: Colors.red, size: 30),
-                    ),
-                ],
-              ),
+                PolylineLayer(polylines: [
+                  Polyline(points: path, strokeWidth: 4, color: Colors.blue),
+                ]),
+              MarkerLayer(markers: [
+                if (startPoint != null)
+                  Marker(
+                    point: startPoint!,
+                    width: 30,
+                    height: 30,
+                    child: const Icon(Icons.flag, color: Colors.green, size: 30),
+                  ),
+                if (endPoint != null)
+                  Marker(
+                    point: endPoint!,
+                    width: 30,
+                    height: 30,
+                    child: const Icon(Icons.flag, color: Colors.red, size: 30),
+                  ),
+              ]),
             ],
           ),
         ),
+
         const SizedBox(height: 12),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
@@ -177,34 +200,37 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+
         if (startPoint != null && endPoint != null)
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Card(
               elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '📅 Date : $date',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                    Text('📅 Date : $date',
+                        style: const TextStyle(fontSize: 16)),
                     const SizedBox(height: 8),
                     Text(
-                      '🚩 Départ : ${startPoint!.latitude.toStringAsFixed(5)}, ${startPoint!.longitude.toStringAsFixed(5)}',
+                      '🚩 Départ : ${startPoint!.latitude.toStringAsFixed(5)}, '
+                      '${startPoint!.longitude.toStringAsFixed(5)}',
                       style: const TextStyle(fontSize: 16),
                     ),
                     Text(
-                      '🏁 Arrivée : ${endPoint!.latitude.toStringAsFixed(5)}, ${endPoint!.longitude.toStringAsFixed(5)}',
+                      '🏁 Arrivée : ${endPoint!.latitude.toStringAsFixed(5)}, '
+                      '${endPoint!.longitude.toStringAsFixed(5)}',
                       style: const TextStyle(fontSize: 16),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '📏 Distance totale : ${totalDistance.toStringAsFixed(2)} km',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -214,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
         else
           const Padding(
             padding: EdgeInsets.all(16.0),
-            child: Text('Chargement du trajet...'),
+            child: Text('Aucun trajet à afficher.'),
           ),
       ],
     );

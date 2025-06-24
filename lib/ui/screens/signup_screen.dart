@@ -3,20 +3,22 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import '../../services/password_service.dart';
 
-class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  State<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _SignupScreenState extends State<SignupScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _lastNameController = TextEditingController();
   final _firstNameController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
+  final _lastNameController = TextEditingController();
+  final _deviceIdController = TextEditingController();
+
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -29,62 +31,60 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
-      // 1. Hacher le mot de passe avec bcrypt
-      final hashedPassword = await PasswordService.hashPassword(_passwordController.text);
-      
-      // 2. Créer l'utilisateur avec Supabase Auth
-      print('Starting signup for ${_emailController.text.trim()}');
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+      final hashedPassword = await PasswordService.hashPassword(password);
+
       final authResponse = await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text, // Mot de passe original pour Supabase Auth
+        email: email,
+        password: password,
       );
-      
-      print('Auth response: ${authResponse.user != null ? 'User created' : 'User creation failed'}');
-      
-      // 3. Insérer dans la table users avec le mot de passe haché
-      if (authResponse.user != null) {
-        print('Inserting user data into public.users table with ID: ${authResponse.user!.id}');
-        
-        try {
-          // Utiliser le mot de passe haché pour votre table personnalisée
-          final response = await Supabase.instance.client.rpc(
+
+      final user = authResponse.user;
+      if (user == null) {
+        throw Exception('Utilisateur non créé.');
+      }
+
+      final response = await Supabase.instance.client
+          .rpc(
             'create_user_profile',
             params: {
-              'user_id': authResponse.user!.id,
-              'first_name': _firstNameController.text,
-              'last_name': _lastNameController.text,
-              'user_password': hashedPassword, // Utiliser le hash bcrypt ici
+              'user_id': user.id,
+              'first_name': _firstNameController.text.trim(),
+              'last_name': _lastNameController.text.trim(),
+              'user_password': hashedPassword,
+              'device_id': _deviceIdController.text.trim(),
             },
-          );
-          print('User data inserted via RPC: $response');
-        } catch (dbError) {
-          print('Database error during user creation: $dbError');
-          await Supabase.instance.client.auth.admin.deleteUser(authResponse.user!.id);
-          throw Exception('Database error: $dbError');
-        }
-      }
-      
+          )
+          .catchError((error) async {
+        // En cas d'erreur dans la fonction RPC, supprimer l’utilisateur créé
+        try {
+          await Supabase.instance.client.auth.admin.deleteUser(user.id);
+        } catch (_) {}
+        throw error;
+      });
+
+      // Normalement la fonction ne renvoie rien (void), donc response.data devrait être null
+      // Si on veut, on peut vérifier que la réponse ne contient pas d'erreur (mais catchError gère ça)
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Inscription réussie! Vous pouvez maintenant vous connecter.'),
+            content: Text('Inscription réussie ! Vous pouvez vous connecter.'),
             backgroundColor: Colors.green,
           ),
         );
-        
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const LoginPage()),
         );
       }
-    } on AuthException catch (error) {
-      print('Auth exception: ${error.message}');
+    } on AuthException catch (e) {
       setState(() {
-        _errorMessage = 'Erreur d\'authentification: ${error.message}';
+        _errorMessage = 'Erreur d\'authentification : ${e.message}';
       });
-    } catch (error) {
-      print('General error: $error');
+    } catch (e) {
       setState(() {
-        _errorMessage = 'Erreur: $error';
+        _errorMessage = 'Erreur : ${e.toString()}';
       });
     } finally {
       if (mounted) {
@@ -100,17 +100,17 @@ class _RegisterPageState extends State<RegisterPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _firstNameController.dispose();  // Add this
-    _lastNameController.dispose();   // Add this
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _deviceIdController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Inscription')),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: ListView(
@@ -118,14 +118,12 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 32),
               const Text(
                 'BikeTrack',
-                style: TextStyle(
-                  fontSize: 32, 
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
                 textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blue),
               ),
               const SizedBox(height: 32),
+
+              // Email
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(
@@ -135,54 +133,48 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer votre email';
-                  }
-                  if (!value.contains('@') || !value.contains('.')) {
-                    return 'Veuillez entrer un email valide';
-                  }
+                  if (value == null || value.isEmpty) return 'Veuillez entrer votre email';
+                  if (!value.contains('@') || !value.contains('.')) return 'Email invalide';
                   return null;
                 },
               ),
               const SizedBox(height: 16),
+
+              // Mot de passe
               TextFormField(
                 controller: _passwordController,
+                obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'Mot de passe',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.lock),
                 ),
-                obscureText: true,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer un mot de passe';
-                  }
-                  if (value.length < 6) {
-                    return 'Le mot de passe doit contenir au moins 6 caractères';
-                  }
+                  if (value == null || value.isEmpty) return 'Veuillez entrer un mot de passe';
+                  if (value.length < 6) return 'Minimum 6 caractères';
                   return null;
                 },
               ),
               const SizedBox(height: 16),
+
+              // Confirmation mot de passe
               TextFormField(
                 controller: _confirmPasswordController,
+                obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'Confirmer le mot de passe',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.lock_outline),
                 ),
-                obscureText: true,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez confirmer votre mot de passe';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Les mots de passe ne correspondent pas';
-                  }
+                  if (value == null || value.isEmpty) return 'Veuillez confirmer le mot de passe';
+                  if (value != _passwordController.text) return 'Les mots de passe ne correspondent pas';
                   return null;
                 },
               ),
               const SizedBox(height: 16),
+
+              // Prénom
               TextFormField(
                 controller: _firstNameController,
                 decoration: const InputDecoration(
@@ -190,14 +182,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.person),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer votre prénom';
-                  }
-                  return null;
-                },
+                validator: (value) => value == null || value.isEmpty ? 'Entrez un prénom' : null,
               ),
               const SizedBox(height: 16),
+
+              // Nom
               TextFormField(
                 controller: _lastNameController,
                 decoration: const InputDecoration(
@@ -205,37 +194,45 @@ class _RegisterPageState extends State<RegisterPage> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.person_outline),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer votre nom';
-                  }
-                  return null;
-                },
+                validator: (value) => value == null || value.isEmpty ? 'Entrez un nom' : null,
+              ),
+              const SizedBox(height: 16),
+
+              // Device ID
+              TextFormField(
+                controller: _deviceIdController,
+                decoration: const InputDecoration(
+                  labelText: 'Device ID',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.devices),
+                ),
+                validator: (value) => value == null || value.trim().isEmpty ? 'Entrez un Device ID' : null,
               ),
               const SizedBox(height: 24),
+
               if (_errorMessage != null)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
+                  padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
                     _errorMessage!,
                     style: const TextStyle(color: Colors.red),
                     textAlign: TextAlign.center,
                   ),
                 ),
+
               ElevatedButton(
                 onPressed: _isLoading ? null : _signUp,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: _isLoading 
-                    ? const CircularProgressIndicator() 
+                child: _isLoading
+                    ? const CircularProgressIndicator()
                     : const Text("S'inscrire", style: TextStyle(fontSize: 16)),
               ),
               const SizedBox(height: 16),
+
               TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+                onPressed: () => Navigator.pop(context),
                 child: const Text('Déjà un compte ? Se connecter'),
               ),
             ],
