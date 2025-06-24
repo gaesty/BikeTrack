@@ -1,0 +1,8 @@
+# Démarrer en arrière-plan avec nohup
+nohup node proxy.js > proxy.log 2>&1 &
+
+# Vérifier que le processus tourne
+ps aux | grep node
+
+# Testez l'accès local
+curl http://localhost:3000/proxy
