@@ -6,8 +6,8 @@ import 'package:biketrack/ui/screens/history_screen.dart';
 import 'package:biketrack/ui/screens/alerts_screen.dart';
 import 'package:biketrack/ui/screens/settings_screen.dart';
 
-import 'package:biketrack/ui/screens/login_screen.dart';  // import login
-import 'package:biketrack/ui/screens/signup_screen.dart'; // import signup (optionnel ici)
+import 'package:biketrack/ui/screens/login_screen.dart';  
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
