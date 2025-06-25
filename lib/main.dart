@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/date_symbol_data_local.dart'; // <-- Ajouté
 
 import 'package:biketrack/ui/screens/home_screen.dart';
 import 'package:biketrack/ui/screens/history_screen.dart';
 import 'package:biketrack/ui/screens/alerts_screen.dart';
 import 'package:biketrack/ui/screens/settings_screen.dart';
-
-import 'package:biketrack/ui/screens/login_screen.dart';  
-
+import 'package:biketrack/ui/screens/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await initializeDateFormatting('fr_FR', null); // Pour corriger LocaleDataException
 
   await Supabase.initialize(
     url: 'https://oynnjhnjyeogltujthcy.supabase.co',
@@ -45,11 +46,11 @@ class _MyAppState extends State<MyApp> {
       _loading = false;
     });
 
-    // Optionnel : Écoute des changements de session (ex: logout)
-    Supabase.instance.client.auth.onAuthStateChange.listen((event) {
-      final session = Supabase.instance.client.auth.currentSession;
+    // Écoute des changements de session (ex: logout)
+    Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      final current = Supabase.instance.client.auth.currentSession;
       setState(() {
-        _loggedIn = session != null;
+        _loggedIn = current != null;
       });
     });
   }
@@ -57,7 +58,6 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      // Écran de chargement simple
       return const MaterialApp(
         home: Scaffold(
           body: Center(child: CircularProgressIndicator()),
@@ -68,6 +68,8 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'BikeTrack',
       theme: ThemeData(primarySwatch: Colors.blue),
+      darkTheme: ThemeData.light(),
+      themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
       home: _loggedIn ? const MainScreen() : const LoginPage(),
     );
@@ -84,17 +86,16 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  static const List<Widget> _pages = <Widget>[
-    HomeScreen(),
-    HistoryScreen(),
-    AlertsScreen(),
+  // Pas de const ici car SettingsScreen attend des paramètres non-const
+  late final List<Widget> _pages = [
+    const HomeScreen(),
+    const HistoryScreen(),
+    const AlertsScreen(),
     SettingsScreen(),
   ];
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
   @override
