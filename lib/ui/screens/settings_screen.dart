@@ -58,14 +58,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         .select('first_name, last_name')
         .eq('id', user.id)
         .single();
-    if (response != null) {
-      setState(() {
-        firstNameController.text = response['first_name'] ?? '';
-        lastNameController.text = response['last_name'] ?? '';
-        isLoading = false;
-      });
+    setState(() {
+      firstNameController.text = response['first_name'] ?? '';
+      lastNameController.text = response['last_name'] ?? '';
+      isLoading = false;
+    });
     }
-  }
 
   Future<void> _saveUserInfo() async {
     final user = supabase.auth.currentUser;

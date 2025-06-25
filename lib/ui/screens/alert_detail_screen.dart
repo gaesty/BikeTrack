@@ -68,14 +68,10 @@ class AlertDetailScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text('🛰️ Type : ${alert.type}'),
                   const SizedBox(height: 16),
-                  if (alert.avgSpeed != null)
-                    Text('🚀 Vitesse moy.  : ${alert.avgSpeed!.toStringAsFixed(1)} km/h'),
-                  if (alert.maxSpeed != null)
-                    Text('🏎️ Vitesse max   : ${alert.maxSpeed!.toStringAsFixed(1)} km/h'),
-                  if (alert.avgInclination != null)
-                    Text('🧭 Inclinaison moy. : ${alert.avgInclination!.toStringAsFixed(1)}°'),
-                  if (alert.maxInclination != null)
-                    Text('📐 Inclinaison max  : ${alert.maxInclination!.toStringAsFixed(1)}°'),
+                  Text('🚀 Vitesse moy.  : ${alert.avgSpeed!.toStringAsFixed(1)} km/h'),
+                  Text('🏎️ Vitesse max   : ${alert.maxSpeed!.toStringAsFixed(1)} km/h'),
+                  Text('🧭 Inclinaison moy. : ${alert.avgInclination!.toStringAsFixed(1)}°'),
+                  Text('📐 Inclinaison max  : ${alert.maxInclination!.toStringAsFixed(1)}°'),
                 ],
               ),
             ),

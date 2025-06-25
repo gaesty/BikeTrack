@@ -41,7 +41,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           .select('device_id')
           .eq('id', user.id)
           .maybeSingle();
-      final deviceId = (userRow as Map<String, dynamic>?)?['device_id'] as String?;
+      final deviceId = (userRow)?['device_id'] as String?;
       if (deviceId == null || deviceId.isEmpty) throw 'Aucun appareil associé';
 
       final raw = await supabase

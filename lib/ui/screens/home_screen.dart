@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
           .eq('id', user.id)
           .maybeSingle();
       final deviceId =
-          (userRow as Map<String, dynamic>?)?['device_id'] as String?;
+          (userRow)?['device_id'] as String?;
       if (deviceId == null || deviceId.isEmpty) {
         throw 'Aucun device associé à l’utilisateur';
       }

@@ -111,7 +111,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
           .eq('id', user.id)
           .maybeSingle();
 
-      final deviceId = (userRow as Map<String, dynamic>?)?['device_id'] as String?;
+      final deviceId = (userRow)?['device_id'] as String?;
       if (deviceId == null || deviceId.isEmpty) throw 'Aucun appareil associé';
 
       final raw = await supabase
@@ -315,10 +315,10 @@ class FilterBottomSheet extends StatelessWidget {
   final void Function(String) onFilterSelected;
 
   const FilterBottomSheet({
-    Key? key,
+    super.key,
     required this.selectedFilter,
     required this.onFilterSelected,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
