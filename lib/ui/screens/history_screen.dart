@@ -191,7 +191,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (errorMessage != null) return Center(child: Text('Erreur : $errorMessage'));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Historique des trajets'), centerTitle: true),
+      appBar: AppBar(
+      title: const Text(
+        'Historique des trajets',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      centerTitle: true,
+      ),
       body: Stack(
         children: [
           Padding(

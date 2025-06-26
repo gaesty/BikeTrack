@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/date_symbol_data_local.dart'; // <-- Ajouté
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:biketrack/ui/screens/home_screen.dart';
 import 'package:biketrack/ui/screens/history_screen.dart';
 import 'package:biketrack/ui/screens/alerts_screen.dart';
 import 'package:biketrack/ui/screens/settings_screen.dart';
+import 'package:biketrack/ui/screens/safety_screen.dart';
 import 'package:biketrack/ui/screens/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await initializeDateFormatting('fr_FR', null); // Pour corriger LocaleDataException
+  await initializeDateFormatting('fr_FR', null);
 
   await Supabase.initialize(
     url: 'https://oynnjhnjyeogltujthcy.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95bm5qaG5qeWVvZ2x0dWp0aGN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzMzIwNTgsImV4cCI6MjA2NTkwODA1OH0.eP28KmebtF0AmUdkUcnzLuRhl4uMnkYJfIaHZ4nHFl4',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95bm5qaG5qeWVvZ2x0dWp0aGN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzMzIwNTgsImV4cCI6MjA2NTkwODA1OH0.eP28KmebtF0AmUdkUcnzLuRhl4uMnkYJfIaHZ4nHFl4',
   );
 
   runApp(const MyApp());
@@ -46,7 +45,6 @@ class _MyAppState extends State<MyApp> {
       _loading = false;
     });
 
-    // Écoute des changements de session (ex: logout)
     Supabase.instance.client.auth.onAuthStateChange.listen((_) {
       final current = Supabase.instance.client.auth.currentSession;
       setState(() {
@@ -86,13 +84,14 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  // Pas de const ici car SettingsScreen attend des paramètres non-const
   late final List<Widget> _pages = [
     const HomeScreen(),
     const HistoryScreen(),
     const AlertsScreen(),
-    SettingsScreen(),
+    const SafetyScreen(),
+    const SettingsScreen(),
   ];
+
 
   void _onItemTapped(int index) {
     setState(() => _selectedIndex = index);
@@ -118,6 +117,10 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.directions_bike),
             label: 'Alertes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.emergency),
+            label: 'Urgence',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),

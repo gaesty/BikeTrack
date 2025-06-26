@@ -4,9 +4,9 @@ import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_sms/flutter_sms.dart';
 
 import 'alert_detail_screen.dart';
-import 'settings_screen.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
@@ -57,47 +57,12 @@ class _AlertsScreenState extends State<AlertsScreen> {
     });
   }
 
-  Future<void> _sendNotification(String title, String body, String id) async {
-    if (_sentNotifications.contains(id)) return;
-    _sentNotifications.add(id);
-
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'alerts_channel',
-      'Alertes',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    const NotificationDetails platformDetails =
-        NotificationDetails(android: androidDetails);
-
-    await flutterLocalNotificationsPlugin.show(
-      id.hashCode,
-      title,
-      body,
-      platformDetails,
-    );
-  }
-
-  void updateSensitivity({
-    required double parkingInclination,
-    required double parkingSpeed,
-    required double drivingInclination,
-    required double drivingSpeed,
-  }) {
-    setState(() {
-      parkingInclinationThreshold = parkingInclination;
-      parkingSpeedThreshold = parkingSpeed;
-      drivingInclinationThreshold = drivingInclination;
-      drivingSpeedThreshold = drivingSpeed;
-    });
-    fetchAlerts();
-  }
-
   Future<void> fetchAlerts() async {
     setState(() {
       isLoading = true;
       errorMessage = null;
       alerts.clear();
+      _sentNotifications.clear();
     });
 
     try {
@@ -182,6 +147,11 @@ class _AlertsScreenState extends State<AlertsScreen> {
             'À ${DateFormat('HH:mm:ss').format(timestamp)} – Vitesse : ${speed.toStringAsFixed(1)} km/h',
             id,
           );
+
+          // Envoi SMS uniquement pour les chutes
+          if (type == 'Chute') {
+            _sendSmsOnFall(chuteInfo);
+          }
         }
       }
 
@@ -195,6 +165,60 @@ class _AlertsScreenState extends State<AlertsScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _sendSmsOnFall(ChuteInfo alert) async {
+    final message = 'ALERTE CHUTE détectée à '
+        '${DateFormat('dd/MM/yyyy HH:mm:ss').format(alert.timestamp)}\n'
+        'Vitesse : ${alert.gpsSpeed.toStringAsFixed(1)} km/h\n'
+        'Inclinaison : ${alert.inclination.toStringAsFixed(1)}°\n'
+        'Position : https://maps.google.com/?q=${alert.latitude},${alert.longitude}';
+
+    // Remplace par les numéros de téléphone d’urgence
+    final List<String> recipients = ['+33612345678'];
+
+    try {
+      String result = await sendSMS(message: message, recipients: recipients, sendDirect: true);
+      print('SMS envoyé : $result');
+    } catch (error) {
+      print('Erreur envoi SMS : $error');
+    }
+  }
+
+  Future<void> _sendNotification(String title, String body, String id) async {
+    if (_sentNotifications.contains(id)) return;
+    _sentNotifications.add(id);
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'alerts_channel',
+      'Alertes',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const NotificationDetails platformDetails =
+        NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      id.hashCode,
+      title,
+      body,
+      platformDetails,
+    );
+  }
+
+  void updateSensitivity({
+    required double parkingInclination,
+    required double parkingSpeed,
+    required double drivingInclination,
+    required double drivingSpeed,
+  }) {
+    setState(() {
+      parkingInclinationThreshold = parkingInclination;
+      parkingSpeedThreshold = parkingSpeed;
+      drivingInclinationThreshold = drivingInclination;
+      drivingSpeedThreshold = drivingSpeed;
+    });
+    fetchAlerts();
   }
 
   void _removeAlert(int index) {
@@ -211,7 +235,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Alertes'),
+        title: const Text(
+          'Alertes',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         actions: [
           Row(
@@ -228,7 +255,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
               const SizedBox(width: 8),
             ],
           ),
-          // Suppression du bouton paramètres ici
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: fetchAlerts,
@@ -249,39 +275,38 @@ class _AlertsScreenState extends State<AlertsScreen> {
                         return Card(
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),
-                          elevation: 4,
-                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          elevation: 3,
+                          margin: const EdgeInsets.symmetric(vertical: 8),
                           child: ListTile(
-                            contentPadding: const EdgeInsets.all(16),
-                            leading: Icon(
-                              alert.type == 'Chute'
-                                  ? Icons.warning_amber
-                                  : alert.type == 'Vol avec chute'
-                                      ? Icons.warning_rounded
-                                      : alert.type == 'Vol'
-                                          ? Icons.lock_open
-                                          : Icons.bolt,
-                              color: alert.type.contains('Chute')
-                                  ? Colors.red
-                                  : Colors.orange,
+                            contentPadding: const EdgeInsets.all(14),
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.red.shade300,
+                              child: Text(
+                                alert.type.substring(0, 1),
+                                style: const TextStyle(color: Colors.white),
+                              ),
                             ),
-                            title: Text(
-                              '${alert.type} détectée à ${DateFormat('dd/MM/yyyy – HH:mm:ss').format(alert.timestamp)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            title: Text(alert.type,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16)),
                             subtitle: Text(
-                              'Inclinaison : ${alert.inclination.toStringAsFixed(1)}°\n'
-                              'Vitesse : ${alert.gpsSpeed.toStringAsFixed(1)} km/h',
+                              'Inclinaison: ${alert.inclination.toStringAsFixed(1)}° - '
+                              'Vitesse: ${alert.gpsSpeed.toStringAsFixed(1)} km/h\n'
+                              '${DateFormat('dd/MM/yyyy HH:mm:ss').format(alert.timestamp)}',
                             ),
                             trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.grey),
-                              onPressed: () => _removeAlert(index),
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                final originalIndex = alerts.indexOf(alert);
+                                _removeAlert(originalIndex);
+                              },
                             ),
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => AlertDetailScreen(alert: alert),
+                                  builder: (_) =>
+                                      AlertDetailScreen(alert: alert),
                                 ),
                               );
                             },
@@ -289,52 +314,79 @@ class _AlertsScreenState extends State<AlertsScreen> {
                         );
                       },
                     ),
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.filter_list),
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            builder: (_) => FilterBottomSheet(
-              selectedFilter: selectedFilter,
-              onFilterSelected: (filter) {
-                setState(() {
-                  selectedFilter = filter;
-                });
-                Navigator.pop(context);
-              },
-            ),
-          );
-        },
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showFilterBottomSheet,
+        icon: const Icon(Icons.filter_alt),
+        label: const Text('Filtrer'),
       ),
     );
   }
-}
 
-class FilterBottomSheet extends StatelessWidget {
-  final String selectedFilter;
-  final void Function(String) onFilterSelected;
-
-  const FilterBottomSheet({
-    super.key,
-    required this.selectedFilter,
-    required this.onFilterSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final filters = ['Toutes', 'Chute', 'Vol', 'Vol avec chute', 'Choc'];
-    return ListView(
-      shrinkWrap: true,
-      children: filters.map((filter) {
-        return RadioListTile<String>(
-          title: Text(filter),
-          value: filter,
-          groupValue: selectedFilter,
-          onChanged: (value) {
-            if (value != null) onFilterSelected(value);
-          },
-        );
-      }).toList(),
+  void _showFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Wrap(
+          children: [
+            ListTile(
+              title: const Text('Toutes'),
+              leading: Radio<String>(
+                value: 'Toutes',
+                groupValue: selectedFilter,
+                onChanged: (value) {
+                  setState(() => selectedFilter = value!);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            ListTile(
+              title: const Text('Chute'),
+              leading: Radio<String>(
+                value: 'Chute',
+                groupValue: selectedFilter,
+                onChanged: (value) {
+                  setState(() => selectedFilter = value!);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            ListTile(
+              title: const Text('Vol'),
+              leading: Radio<String>(
+                value: 'Vol',
+                groupValue: selectedFilter,
+                onChanged: (value) {
+                  setState(() => selectedFilter = value!);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            ListTile(
+              title: const Text('Vol avec chute'),
+              leading: Radio<String>(
+                value: 'Vol avec chute',
+                groupValue: selectedFilter,
+                onChanged: (value) {
+                  setState(() => selectedFilter = value!);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            ListTile(
+              title: const Text('Choc'),
+              leading: Radio<String>(
+                value: 'Choc',
+                groupValue: selectedFilter,
+                onChanged: (value) {
+                  setState(() => selectedFilter = value!);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

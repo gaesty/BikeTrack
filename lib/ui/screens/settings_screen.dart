@@ -10,7 +10,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Seuils
+  // Seuils de sensibilité
   double parkingInclination = 50;
   double parkingSpeed = 1;
   double drivingInclination = 50;
@@ -20,10 +20,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool notifyFall = true;
   bool notifyTheft = true;
 
-  // Loading
+  // Chargement initial
   bool isLoading = true;
 
-  // Champs compte
+  // Champs compte utilisateur
   final TextEditingController firstNameController = TextEditingController();
   final TextEditingController lastNameController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -36,6 +36,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadSettings();
     _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    firstNameController.dispose();
+    lastNameController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -58,12 +67,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         .select('first_name, last_name')
         .eq('id', user.id)
         .single();
-    setState(() {
-      firstNameController.text = response['first_name'] ?? '';
-      lastNameController.text = response['last_name'] ?? '';
-      isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        firstNameController.text = response['first_name'] ?? '';
+        lastNameController.text = response['last_name'] ?? '';
+        isLoading = false;
+      });
     }
+  }
 
   Future<void> _saveUserInfo() async {
     final user = supabase.auth.currentUser;
@@ -209,7 +220,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Paramètres')),
+        appBar: AppBar(title: const Text('Paramètres', style: TextStyle(fontWeight: FontWeight.bold))),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -222,7 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Section sensibilité
+            // Sensibilité alertes
             const Align(
               alignment: Alignment.centerLeft,
               child: Text('🔧 Sensibilité des alertes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -278,8 +289,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: "Vitesse",
               value: drivingSpeed,
               min: 0,
-              max: 100,
-              divisions: 100,
+              max: 120,
+              divisions: 120,
               unit: "km/h",
               onChanged: (v) {
                 setState(() => drivingSpeed = v);
@@ -287,16 +298,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
 
-            const Divider(height: 40),
+            const SizedBox(height: 16),
 
+            // Notifications
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('🔔 Notifications push', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text('🔔 Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             _buildSwitchTile(
               title: "Alerte chute",
-              emoji: "⚠️",
               value: notifyFall,
+              emoji: '🚨',
               onChanged: (v) {
                 setState(() => notifyFall = v);
                 _saveBool('notifyFall', v);
@@ -304,90 +316,86 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             _buildSwitchTile(
               title: "Alerte vol",
-              emoji: "🔒",
               value: notifyTheft,
+              emoji: '🔒',
               onChanged: (v) {
                 setState(() => notifyTheft = v);
                 _saveBool('notifyTheft', v);
               },
             ),
 
-            const Divider(height: 40),
+            const Divider(height: 32),
 
+            // Compte utilisateur
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('👤 Compte', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text('👤 Mon compte', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: firstNameController,
               decoration: const InputDecoration(
-                labelText: 'Prénom',
+                labelText: "Prénom",
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             TextField(
               controller: lastNameController,
               decoration: const InputDecoration(
-                labelText: 'Nom',
+                labelText: "Nom",
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: _saveUserInfo,
-              icon: const Icon(Icons.save),
-              label: const Text("Enregistrer les infos"),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+              child: const Text("Enregistrer les informations"),
             ),
 
             const SizedBox(height: 24),
+
+            // Changement mot de passe
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text('🔐 Changer le mot de passe', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Nouveau mot de passe',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: confirmPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirmer le mot de passe',
-                border: OutlineInputBorder(),
-              ),
+              child: Text('🔑 Changer de mot de passe', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: _changePassword,
-              icon: const Icon(Icons.lock),
-              label: const Text("Changer le mot de passe"),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            TextField(
+              controller: passwordController,
+              decoration: const InputDecoration(
+                labelText: "Nouveau mot de passe",
+                border: OutlineInputBorder(),
               ),
+              obscureText: true,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmPasswordController,
+              decoration: const InputDecoration(
+                labelText: "Confirmer le mot de passe",
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _changePassword,
+              child: const Text("Changer le mot de passe"),
             ),
 
             const SizedBox(height: 32),
-            Center(
-              child: TextButton.icon(
-                onPressed: _logout,
-                icon: const Icon(Icons.logout),
-                label: const Text("Se déconnecter"),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
+
+            // Déconnexion
+            ElevatedButton.icon(
+              icon: const Icon(Icons.logout),
+              label: const Text("Se déconnecter"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                minimumSize: const Size.fromHeight(48),
               ),
-            )
+              onPressed: _logout,
+            ),
           ],
         ),
       ),
