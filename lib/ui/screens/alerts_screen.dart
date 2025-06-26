@@ -1,10 +1,11 @@
+import 'package:biketrack/ui/screens/confirmation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_sms/flutter_sms.dart';
+import 'dart:convert';
 
 import 'alert_detail_screen.dart';
 
@@ -142,15 +143,15 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
           foundAlerts.add(chuteInfo);
 
-          _sendNotification(
+          await _sendNotification(
             'Alerte : $type détecté',
             'À ${DateFormat('HH:mm:ss').format(timestamp)} – Vitesse : ${speed.toStringAsFixed(1)} km/h',
             id,
           );
 
-          // Envoi SMS uniquement pour les chutes
-          if (type == 'Chute') {
-            _sendSmsOnFall(chuteInfo);
+          // Appel à la fonction de confirmation et envoi mail si chute à grande vitesse (exemple vitesse > 50 km/h)
+          if (type == 'Chute' && speed > 50) {
+            onCrashDetected(context, latitude, longitude);
           }
         }
       }
@@ -164,24 +165,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
         errorMessage = e.toString();
         isLoading = false;
       });
-    }
-  }
-
-  Future<void> _sendSmsOnFall(ChuteInfo alert) async {
-    final message = 'ALERTE CHUTE détectée à '
-        '${DateFormat('dd/MM/yyyy HH:mm:ss').format(alert.timestamp)}\n'
-        'Vitesse : ${alert.gpsSpeed.toStringAsFixed(1)} km/h\n'
-        'Inclinaison : ${alert.inclination.toStringAsFixed(1)}°\n'
-        'Position : https://maps.google.com/?q=${alert.latitude},${alert.longitude}';
-
-    // Remplace par les numéros de téléphone d’urgence
-    final List<String> recipients = ['+33612345678'];
-
-    try {
-      String result = await sendSMS(message: message, recipients: recipients, sendDirect: true);
-      print('SMS envoyé : $result');
-    } catch (error) {
-      print('Erreur envoi SMS : $error');
     }
   }
 
@@ -315,78 +298,38 @@ class _AlertsScreenState extends State<AlertsScreen> {
                       },
                     ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showFilterBottomSheet,
-        icon: const Icon(Icons.filter_alt),
+        onPressed: _showFilterDialog,
         label: const Text('Filtrer'),
+        icon: const Icon(Icons.filter_list),
       ),
     );
   }
 
-  void _showFilterBottomSheet() {
-    showModalBottomSheet(
+  void _showFilterDialog() {
+    showDialog(
       context: context,
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Wrap(
-          children: [
-            ListTile(
-              title: const Text('Toutes'),
-              leading: Radio<String>(
-                value: 'Toutes',
-                groupValue: selectedFilter,
-                onChanged: (value) {
-                  setState(() => selectedFilter = value!);
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-            ListTile(
-              title: const Text('Chute'),
-              leading: Radio<String>(
-                value: 'Chute',
-                groupValue: selectedFilter,
-                onChanged: (value) {
-                  setState(() => selectedFilter = value!);
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-            ListTile(
-              title: const Text('Vol'),
-              leading: Radio<String>(
-                value: 'Vol',
-                groupValue: selectedFilter,
-                onChanged: (value) {
-                  setState(() => selectedFilter = value!);
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-            ListTile(
-              title: const Text('Vol avec chute'),
-              leading: Radio<String>(
-                value: 'Vol avec chute',
-                groupValue: selectedFilter,
-                onChanged: (value) {
-                  setState(() => selectedFilter = value!);
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-            ListTile(
-              title: const Text('Choc'),
-              leading: Radio<String>(
-                value: 'Choc',
-                groupValue: selectedFilter,
-                onChanged: (value) {
-                  setState(() => selectedFilter = value!);
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+      builder: (context) {
+        final filters = ['Toutes', 'Chute', 'Vol', 'Choc', 'Vol avec chute'];
+        return AlertDialog(
+          title: const Text('Filtrer les alertes'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: filters
+                .map((filter) => RadioListTile<String>(
+                      title: Text(filter),
+                      value: filter,
+                      groupValue: selectedFilter,
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => selectedFilter = value);
+                          Navigator.pop(context);
+                        }
+                      },
+                    ))
+                .toList(),
+          ),
+        );
+      },
     );
   }
 }
@@ -415,4 +358,41 @@ class ChuteInfo {
     required this.avgInclination,
     required this.maxInclination,
   });
+}
+
+/// Classe pour stocker un contact d'urgence
+class EmergencyContact {
+  final String name;
+  final String phone;
+
+  EmergencyContact({required this.name, required this.phone});
+
+  Map<String, dynamic> toMap() => {'name': name, 'phone': phone};
+
+  factory EmergencyContact.fromMap(Map<String, dynamic> map) =>
+      EmergencyContact(name: map['name'], phone: map['phone']);
+}
+
+/// Charge la liste des contacts depuis SharedPreferences
+Future<List<EmergencyContact>> loadContacts() async {
+  final prefs = await SharedPreferences.getInstance();
+  final jsonString = prefs.getString('emergency_contacts');
+  if (jsonString == null) return [];
+  final List<dynamic> jsonList = json.decode(jsonString);
+  return jsonList
+      .map((e) => EmergencyContact.fromMap(e as Map<String, dynamic>))
+      .toList();
+}
+
+/// Fonction appelée lors d'une chute détectée (avec confirmation)
+void onCrashDetected(BuildContext context, double latitude, double longitude) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ConfirmationScreen(
+        latitude: latitude,
+        longitude: longitude,
+      ),
+    ),
+  );
 }

@@ -43,7 +43,7 @@ class _SafetyScreenState extends State<SafetyScreen> {
 
   void _addEmergencyContact() {
     final nameController = TextEditingController();
-    final numberController = TextEditingController();
+    final emailController = TextEditingController();
 
     showDialog(
       context: context,
@@ -58,9 +58,9 @@ class _SafetyScreenState extends State<SafetyScreen> {
               autofocus: true,
             ),
             TextField(
-              controller: numberController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: "Numéro de téléphone"),
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: "Email"),
             ),
           ],
         ),
@@ -72,10 +72,10 @@ class _SafetyScreenState extends State<SafetyScreen> {
           ElevatedButton(
             onPressed: () {
               final name = nameController.text.trim();
-              final number = numberController.text.trim();
-              if (name.isNotEmpty && number.isNotEmpty) {
+              final email = emailController.text.trim();
+              if (name.isNotEmpty && email.isNotEmpty) {
                 setState(() {
-                  emergencyContacts.add({'name': name, 'number': number});
+                  emergencyContacts.add({'name': name, 'email': email});
                 });
                 _saveContacts();
                 Navigator.pop(context);
@@ -91,8 +91,8 @@ class _SafetyScreenState extends State<SafetyScreen> {
   void _editEmergencyContact(int index) {
     final nameController =
         TextEditingController(text: emergencyContacts[index]['name']);
-    final numberController =
-        TextEditingController(text: emergencyContacts[index]['number']);
+    final emailController =
+        TextEditingController(text: emergencyContacts[index]['email']);
 
     showDialog(
       context: context,
@@ -107,9 +107,9 @@ class _SafetyScreenState extends State<SafetyScreen> {
               autofocus: true,
             ),
             TextField(
-              controller: numberController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: "Numéro de téléphone"),
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: "Email"),
             ),
           ],
         ),
@@ -121,10 +121,10 @@ class _SafetyScreenState extends State<SafetyScreen> {
           ElevatedButton(
             onPressed: () {
               final name = nameController.text.trim();
-              final number = numberController.text.trim();
-              if (name.isNotEmpty && number.isNotEmpty) {
+              final email = emailController.text.trim();
+              if (name.isNotEmpty && email.isNotEmpty) {
                 setState(() {
-                  emergencyContacts[index] = {'name': name, 'number': number};
+                  emergencyContacts[index] = {'name': name, 'email': email};
                 });
                 _saveContacts();
                 Navigator.pop(context);
@@ -169,7 +169,8 @@ class _SafetyScreenState extends State<SafetyScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("📞 Contact d'urgence", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("📞 Contact d'urgence",
+            style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: ListView(
@@ -197,7 +198,7 @@ class _SafetyScreenState extends State<SafetyScreen> {
                   child: ListTile(
                     title: Text(entry.value['name'] ?? '',
                         style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(entry.value['number'] ?? ''),
+                    subtitle: Text(entry.value['email'] ?? ''),
                     leading: const Icon(Icons.person, color: Colors.blue),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,

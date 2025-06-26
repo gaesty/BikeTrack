@@ -13,7 +13,7 @@ class AlertDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Détail de l\'alerte'),
+        title: const Text('Détail de l\'alerte', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: ListView(
