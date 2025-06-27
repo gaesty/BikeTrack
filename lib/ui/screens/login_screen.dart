@@ -3,11 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'signup_screen.dart';  // Updated path since they're in the same folder
 import '../../main.dart';
 import '../../services/password_service.dart';
-import 'package:biketrack/theme_notifier.dart';
 
 class LoginPage extends StatefulWidget {
-  final ThemeNotifier? themeNotifier;
-  const LoginPage({super.key, this.themeNotifier});
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -72,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
         
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => MainScreen(themeNotifier: widget.themeNotifier!)),
+            MaterialPageRoute(builder: (context) => const MainScreen()),
             (route) => false,
           );
         }
