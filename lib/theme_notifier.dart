@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeNotifier extends ValueNotifier<ThemeMode> {
-  ThemeNotifier(ThemeMode value) : super(value);
+  ThemeNotifier(super.value);
 
   static Future<ThemeNotifier> create() async {
     final prefs = await SharedPreferences.getInstance();

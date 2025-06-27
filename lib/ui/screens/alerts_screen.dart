@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import 'alert_detail_screen.dart';
 
@@ -162,8 +163,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
           );
 
           // Appel à la fonction de confirmation et envoi mail si chute à grande vitesse (exemple vitesse > 50 km/h)
-          if (type == 'Chute' && speed > 50) {
-            onCrashDetected(context, latitude, longitude);
+          if (type == 'Chute' && speed > 50 && !isMonitoringEnabled) {
+            await onCrashDetected(context, latitude, longitude);
           }
         }
       }
@@ -397,14 +398,75 @@ Future<List<EmergencyContact>> loadContacts() async {
 }
 
 /// Fonction appelée lors d'une chute détectée (avec confirmation)
-void onCrashDetected(BuildContext context, double latitude, double longitude) {
-  Navigator.push(
+Future<void> onCrashDetected(BuildContext context, double latitude, double longitude, {int? emergencyDelay}) async {
+  // Récupérer le délai depuis les settings si non fourni
+  int delay = emergencyDelay ?? 10;
+  final prefs = await SharedPreferences.getInstance();
+  delay = prefs.getInt('emergencyDelay') ?? delay;
+
+  // Afficher l'écran de confirmation et attendre la réponse ou le timeout
+  final result = await Navigator.push(
     context,
     MaterialPageRoute(
       builder: (context) => ConfirmationScreen(
         latitude: latitude,
         longitude: longitude,
+        timeoutSeconds: delay,
       ),
     ),
   );
+
+  // Si l'utilisateur ne répond pas ou répond "Non", envoyer un mail aux contacts d'urgence
+  if (result == null || result == false) {
+    // Charger les contacts d'urgence
+    final contactsJson = prefs.getStringList('emergencyContacts') ?? [];
+    final contacts = contactsJson
+        .map((c) => Map<String, String>.from(json.decode(c)))
+        .toList();
+    for (final contact in contacts) {
+      final email = contact['email'];
+      final name = contact['name'] ?? '';
+      if (email != null && email.isNotEmpty) {
+        await sendEmergencyEmail(
+          email: email,
+          name: name,
+          latitude: latitude,
+          longitude: longitude,
+        );
+      }
+    }
+  }
+}
+
+Future<void> sendEmergencyEmail({
+  required String email,
+  required String name,
+  required double latitude,
+  required double longitude,
+}) async {
+  final supabaseUrl = Supabase.instance.client.supabaseUrl;
+  final functionUrl = '$supabaseUrl/functions/v1/send_emergency_email';
+  final user = Supabase.instance.client.auth.currentUser;
+  final token = Supabase.instance.client.auth.currentSession?.accessToken;
+
+  final response = await http.post(
+    Uri.parse(functionUrl),
+    headers: {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    },
+    body: json.encode({
+      'to': email,
+      'name': name,
+      'latitude': latitude,
+      'longitude': longitude,
+      'message': "Votre proche a eu un accident à https://maps.google.com/?q=$latitude,$longitude. Essayez de le contacter, sinon contactez les services d'urgence."
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    print('Mail envoyé à $email');
+  } else {
+    print('Erreur envoi mail: ${response.statusCode} ${response.body}');
+  }
 }
