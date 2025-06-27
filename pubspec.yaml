@@ -19,7 +19,6 @@ dependencies:
   timezone: 0.10.1
   bcrypt: ^1.0.0
   shared_preferences: ^2.0.15
-  flutter_sms: ^2.3.1
 
 dev_dependencies:
   flutter_test:

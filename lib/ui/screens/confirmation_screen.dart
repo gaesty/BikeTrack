@@ -9,12 +9,12 @@ class ConfirmationScreen extends StatefulWidget {
   final int timeoutSeconds;
 
   // On ajoute latitude et longitude au constructeur, et on les rend obligatoires
-  ConfirmationScreen({
+  const ConfirmationScreen({
     required this.latitude,
     required this.longitude,
     this.timeoutSeconds = 30,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   _ConfirmationScreenState createState() => _ConfirmationScreenState();

@@ -8,21 +8,24 @@ import 'package:biketrack/ui/screens/alerts_screen.dart';
 import 'package:biketrack/ui/screens/settings_screen.dart';
 import 'package:biketrack/ui/screens/safety_screen.dart';
 import 'package:biketrack/ui/screens/login_screen.dart';
+import 'package:biketrack/theme_notifier.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('fr_FR', null);
-
   await Supabase.initialize(
     url: 'https://oynnjhnjyeogltujthcy.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95bm5qaG5qeWVvZ2x0dWp0aGN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzMzIwNTgsImV4cCI6MjA2NTkwODA1OH0.eP28KmebtF0AmUdkUcnzLuRhl4uMnkYJfIaHZ4nHFl4',
   );
 
-  runApp(const MyApp());
+  final themeNotifier = await ThemeNotifier.create();
+
+  runApp(MyApp(themeNotifier: themeNotifier));
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final ThemeNotifier themeNotifier;
+  const MyApp({super.key, required this.themeNotifier});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -63,19 +66,25 @@ class _MyAppState extends State<MyApp> {
       );
     }
 
-    return MaterialApp(
-      title: 'BikeTrack',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      darkTheme: ThemeData.light(),
-      themeMode: ThemeMode.system,
-      debugShowCheckedModeBanner: false,
-      home: _loggedIn ? const MainScreen() : const LoginPage(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: widget.themeNotifier,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          title: 'BikeTrack',
+          theme: ThemeData(primarySwatch: Colors.blue),
+          darkTheme: ThemeData.dark(),
+          themeMode: themeMode,
+          debugShowCheckedModeBanner: false,
+          home: _loggedIn ? MainScreen(themeNotifier: widget.themeNotifier) : LoginPage(themeNotifier: widget.themeNotifier),
+        );
+      },
     );
   }
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final ThemeNotifier themeNotifier;
+  const MainScreen({super.key, required this.themeNotifier});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -89,7 +98,7 @@ class _MainScreenState extends State<MainScreen> {
     const HistoryScreen(),
     const AlertsScreen(),
     const SafetyScreen(),
-    const SettingsScreen(),
+    SettingsScreen(themeNotifier: widget.themeNotifier),
   ];
 
 

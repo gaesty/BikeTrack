@@ -80,6 +80,20 @@ class _AlertsScreenState extends State<AlertsScreen> {
       final deviceId = (userRow)?['device_id'] as String?;
       if (deviceId == null || deviceId.isEmpty) throw 'Aucun appareil associé';
 
+      // Récupérer le dernier enregistrement sensor_data pour ce device
+      final lastSensor = await supabase
+          .from('sensor_data')
+          .select('battery_is_charging')
+          .eq('device_id', deviceId)
+          .order('timestamp', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (lastSensor != null && lastSensor['battery_is_charging'] != null) {
+        setState(() {
+          isMonitoringEnabled = lastSensor['battery_is_charging'] == false;
+        });
+      }
+
       final raw = await supabase
           .from('sensor_data')
           .select()
@@ -112,7 +126,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
         final isVol = isMonitoringEnabled && speed > parkingSpeedThreshold;
         final isVolAvecChute = isVol && inclination > parkingInclinationThreshold;
-        final isChoc = accelMagnitude > 3.0;
+        final isChoc = false; // Désactivé
 
         String? type;
         if (isVolAvecChute) {
@@ -121,8 +135,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
           type = 'Chute';
         } else if (isVol) {
           type = 'Vol';
-        } else if (isChoc) {
-          type = 'Choc';
         }
 
         if (type != null) {
@@ -309,7 +321,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        final filters = ['Toutes', 'Chute', 'Vol', 'Choc', 'Vol avec chute'];
+        final filters = ['Toutes', 'Chute', 'Vol', 'Vol avec chute'];
         return AlertDialog(
           title: const Text('Filtrer les alertes'),
           content: Column(

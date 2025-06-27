@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:biketrack/theme_notifier.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final ThemeNotifier? themeNotifier;
+  const SettingsScreen({super.key, this.themeNotifier});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -29,6 +31,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController = TextEditingController();
 
+  // Dark mode
+  bool isDarkMode = false;
+
   final supabase = Supabase.instance.client;
 
   @override
@@ -36,6 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadSettings();
     _loadUserData();
+    _loadDarkMode();
   }
 
   @override
@@ -74,6 +80,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      isDarkMode = prefs.getBool('isDarkMode') ?? false;
+    });
   }
 
   Future<void> _saveUserInfo() async {
@@ -167,6 +180,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _saveDarkMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', value);
+    setState(() {
+      isDarkMode = value;
+    });
+    widget.themeNotifier?.setDarkMode(value);
   }
 
   Widget _buildSliderCard({
@@ -382,6 +404,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ElevatedButton(
               onPressed: _changePassword,
               child: const Text("Changer le mot de passe"),
+            ),
+
+            const SizedBox(height: 32),
+
+            // Thème
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('🎨 Thème', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            SwitchListTile(
+              title: const Text('Mode sombre'),
+              value: isDarkMode,
+              onChanged: (v) => _saveDarkMode(v),
+              secondary: const Icon(Icons.dark_mode),
             ),
 
             const SizedBox(height: 32),
