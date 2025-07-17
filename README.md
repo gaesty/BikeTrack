@@ -101,7 +101,7 @@ BikeTrack/
 - Initialisation GPS et capteurs MPU9250
 - Connexion réseau 4G automatique
 - Envoi de données vers Supabase via HTTPS
-- Système de SMS d\'urgence
+- Système de SMS d'urgence
 - Monitoring de batterie en temps réel
 - Détection de mouvements anormaux
 ```
