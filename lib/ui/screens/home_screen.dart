@@ -1,11 +1,29 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
+/// Écran d'accueil de BikeTrack - Vue principale avec carte et données en temps réel
+/// 
+/// Cet écran constitue le point central de l'application BikeTrack. Il affiche:
+/// - Une carte interactive montrant la position actuelle et les trajectoires
+/// - Les statistiques du dernier trajet (distance, points GPS)
+/// - Les informations de connexion et d'état de l'appareil
+/// 
+/// Fonctionnalités principales:
+/// - Chargement et affichage des données GPS depuis Supabase
+/// - Calcul automatique des trajectoires et distances
+/// - Gestion des sessions de trajet (détection des redémarrages)
+/// - Interface utilisateur réactive avec gestion d'erreurs
 
+// Imports Flutter et packages externes
+import 'package:flutter/material.dart';           // Framework UI Flutter
+import 'package:flutter_map/flutter_map.dart';   // Widget de carte interactive
+import 'package:latlong2/latlong.dart';          // Types pour coordonnées GPS
+import 'package:supabase_flutter/supabase_flutter.dart'; // Client base de données
+import 'package:intl/intl.dart';                 // Formatage des dates/nombres
+import 'package:timezone/data/latest.dart' as tz;  // Données de fuseaux horaires
+import 'package:timezone/timezone.dart' as tz;     // Gestion des fuseaux horaires
+
+/// Widget principal de l'écran d'accueil
+/// 
+/// StatefulWidget permettant de gérer l'état de la carte, des données GPS
+/// et des interactions utilisateur de manière réactive.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -13,23 +31,46 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// État de l'écran d'accueil - Gestion des données et de l'interface
+/// 
+/// Cette classe gère:
+/// - Le contrôleur de carte pour la navigation
+/// - Les données de trajectoire et statistiques
+/// - Les états de chargement et d'erreur
+/// - Les interactions avec la base de données Supabase
 class _HomeScreenState extends State<HomeScreen> {
+  // Contrôleur pour manipuler la carte (zoom, centre, etc.)
   final MapController _mapController = MapController();
-  List<LatLng> path = [];
-  LatLng? startPoint;
-  LatLng? endPoint;
-  String date = '';
-  double totalDistance = 0.0;
-  bool isLoading = true;
-  String? errorMessage;
+  
+  // Données de trajectoire et navigation
+  List<LatLng> path = [];           // Points formant la trajectoire à afficher
+  LatLng? startPoint;               // Point de départ du trajet
+  LatLng? endPoint;                 // Point d'arrivée du trajet
+  String date = '';                 // Date du trajet formatée
+  double totalDistance = 0.0;       // Distance totale parcourue en kilomètres
+  
+  // États de l'interface utilisateur
+  bool isLoading = true;            // Indicateur de chargement des données
+  String? errorMessage;             // Message d'erreur éventuel
 
   @override
   void initState() {
     super.initState();
+    // Initialisation des fuseaux horaires pour le formatage des dates
     tz.initializeTimeZones();
+    // Chargement initial des données de trajectoire
     fetchTrajectory();
   }
 
+  /// Récupère et traite les données de trajectoire depuis Supabase
+  /// 
+  /// Cette méthode complexe:
+  /// 1. Récupère l'ID de l'appareil associé à l'utilisateur connecté
+  /// 2. Charge tous les points GPS valides de cet appareil
+  /// 3. Découpe les données en sessions (gestion des redémarrages)
+  /// 4. Sélectionne la session la plus récente avec suffisamment de points
+  /// 5. Calcule les statistiques (distance, points de départ/arrivée)
+  /// 6. Met à jour l'état de l'interface utilisateur
   Future<void> fetchTrajectory() async {
     setState(() {
       isLoading = true;
@@ -37,11 +78,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
+      // Récupération du client Supabase et vérification de l'authentification
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       if (user == null) throw 'Utilisateur non connecté';
 
-      // 1) Récupère device_id
+      // 1) Récupération de l'ID de l'appareil associé à l'utilisateur
       final userRow = await supabase
           .from('users')
           .select('device_id')

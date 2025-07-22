@@ -1,30 +1,94 @@
+# ============================================================================
+# Configuration du projet BikeTrack - Application Flutter multiplateforme
+# ============================================================================
+# 
+# BikeTrack est une application de géolocalisation et sécurité pour motos
+# connectées. Elle utilise Flutter pour une expérience native sur mobile,
+# web et desktop, avec une architecture cloud basée sur Supabase.
+#
+# Fonctionnalités principales:
+# - Géolocalisation temps réel avec cartes interactives
+# - Notifications push pour alertes de sécurité
+# - Authentification sécurisée avec chiffrement des mots de passe
+# - Historique des trajets et analyse de données
+# - Interface utilisateur responsive et accessible
+
 name: biketrack
-description: "A new Flutter project."
+description: "Application de géolocalisation et sécurité pour motos connectées BikeTrack"
+
+# Configuration de publication (privé pour le développement)
 publish_to: 'none'
+
+# Versioning sémantique: MAJOR.MINOR.PATCH
+# 0.1.0 = Version alpha en développement
 version: 0.1.0
 
+# ============================================================================
+# ENVIRONNEMENT DE DÉVELOPPEMENT
+# ============================================================================
 environment:
-  sdk: ^3.8.1
+  sdk: ^3.8.1  # Version minimum du SDK Dart requise
 
+# ============================================================================
+# DÉPENDANCES PRINCIPALES - Packages requis pour l'exécution
+# ============================================================================
 dependencies:
+  # Framework Flutter - Core de l'application
   flutter:
     sdk: flutter
-  http: ^1.2.1
-  geolocator: ^14.0.1
-  flutter_local_notifications: 18.0.1
-  supabase_flutter: ^2.9.1
-  flutter_map: ^6.1.0
-  latlong2: ^0.9.0
-  intl: ^0.19.0
-  timezone: 0.10.1
-  bcrypt: ^1.0.0
-  shared_preferences: ^2.0.15
+  
+  # Communication réseau et APIs REST
+  http: ^1.2.1  # Client HTTP pour appels API (alternative à dio)
+  
+  # Services de géolocalisation
+  geolocator: ^14.0.1  # Accès au GPS et services de localisation natifs
+  
+  # Système de notifications
+  flutter_local_notifications: 18.0.1  # Notifications push locales multiplateformes
+  
+  # Base de données et authentification cloud
+  supabase_flutter: ^2.9.1  # Client Supabase avec auth, realtime, storage
+  
+  # Cartographie et visualisation géographique
+  flutter_map: ^6.1.0  # Widget de carte interactive (OpenStreetMap, Mapbox...)
+  latlong2: ^0.9.0     # Types et calculs pour coordonnées géographiques
+  
+  # Internationalisation et formatage
+  intl: ^0.19.0     # Formatage des dates, nombres, devises (i18n/l10n)
+  timezone: 0.10.1  # Gestion avancée des fuseaux horaires
+  
+  # Sécurité et chiffrement
+  bcrypt: ^1.0.0  # Hachage sécurisé des mots de passe (salt + hash)
+  
+  # Stockage local et préférences
+  shared_preferences: ^2.0.15  # Stockage clé-valeur persistant local
 
+# ============================================================================
+# DÉPENDANCES DE DÉVELOPPEMENT - Packages pour tests et qualité de code
+# ============================================================================
 dev_dependencies:
+  # Framework de tests unitaires et d'intégration
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  
+  # Linting et analyse statique du code
+  flutter_lints: ^6.0.0  # Règles de qualité de code recommandées par Flutter
 
+# ============================================================================
+# CONFIGURATION FLUTTER - Ressources et assets
+# ============================================================================
 flutter:
+  # Active le support Material Design (Android) et Cupertino (iOS)
   uses-material-design: true
+  
+  # Assets à inclure dans l'application (images, fonts, fichiers...)
+  # assets:
+  #   - images/
+  #   - icons/
+  
+  # Polices personnalisées
+  # fonts:
+  #   - family: Roboto
+  #     fonts:
+  #       - asset: fonts/Roboto-Regular.ttf
   

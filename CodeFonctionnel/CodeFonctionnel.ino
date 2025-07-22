@@ -1,130 +1,160 @@
 /**
  * @file CodeCompletAvecBatterie.ino
  * @description Code complet LilyGO A7670E avec monitoring de batterie intégré
+ * @author BikeTrack Team
  * @version 4.0 - Monitoring de batterie complet
+ * @description Système de géolocalisation et télémétrie pour moto connectée
+ *              Intègre GPS, capteurs de mouvement (MPU9250), communication 4G
+ *              et monitoring complet de la batterie avec panneau solaire optionnel
  */
 
-#include "utilities.h"
-#include "arduino_secrets.h"
-#include <TinyGsmClient.h>
-#include <TinyGPSPlus.h>
-#include <Wire.h>
-#include <MPU9250_asukiaaa.h>
-#include <ArduinoJson.h>
+// Inclusion des fichiers de configuration et utilitaires
+#include "utilities.h"         // Définitions des broches spécifiques à la carte LilyGO
+#include "arduino_secrets.h"   // Identifiants secrets (APN, clés API, etc.)
+#include <TinyGsmClient.h>     // Client GSM/4G pour communication cellulaire
+#include <TinyGPSPlus.h>       // Décodage des trames NMEA GPS
+#include <Wire.h>              // Communication I2C pour les capteurs
+#include <MPU9250_asukiaaa.h>  // Driver pour capteur inertiel MPU9250
+#include <ArduinoJson.h>       // Sérialisation/désérialisation JSON
 
-// --- Configuration modem ---
-#define TINY_GSM_RX_BUFFER 1024
-#define SerialAT Serial1
-TinyGsm modem(SerialAT);
-TinyGsmClient client(modem);
+// --- Configuration du modem cellulaire ---
+#define TINY_GSM_RX_BUFFER 1024  // Taille du buffer de réception (1KB)
+#define SerialAT Serial1         // Port série pour communication avec le modem
+TinyGsm modem(SerialAT);        // Instance du modem GSM/4G
+TinyGsmClient client(modem);    // Client TCP/IP utilisant le modem
 
-// --- Configuration I2C MPU9250 ---
-#define SDA_PIN 21
-#define SCL_PIN 22
-#define I2C_CLOCK_SPEED 100000
-#define MPU9250_ADDRESS 0x68
+// --- Configuration I2C pour capteur MPU9250 ---
+#define SDA_PIN 21             // Broche SDA (données I2C)
+#define SCL_PIN 22             // Broche SCL (horloge I2C)
+#define I2C_CLOCK_SPEED 100000 // Fréquence I2C à 100kHz (standard)
+#define MPU9250_ADDRESS 0x68   // Adresse I2C du capteur MPU9250
 
-// --- Configuration batterie ---
+// --- Configuration système de monitoring batterie ---
 #ifndef BOARD_BAT_ADC_PIN
 #error "Cette carte ne supporte pas le monitoring de batterie"
 #endif
 
 // Table de correspondance tension/pourcentage pour batterie LiPo 18650
+// Format: {tension_mV, pourcentage} - Caractéristique de décharge typique
 const int BATTERY_VOLTAGE_TABLE[][2] = {
+    // Zone de charge complète (4.2V - 4.0V) = 100% - 90%
     {4200, 100}, {4180, 99}, {4160, 98}, {4140, 97}, {4120, 96},
     {4100, 95}, {4080, 94}, {4060, 93}, {4040, 92}, {4020, 91},
+    // Zone de fonctionnement normal (4.0V - 3.7V) = 90% - 60%
     {4000, 90}, {3980, 88}, {3960, 86}, {3940, 84}, {3920, 82},
     {3900, 80}, {3880, 78}, {3860, 76}, {3840, 74}, {3820, 72},
     {3800, 70}, {3780, 68}, {3760, 66}, {3740, 64}, {3720, 62},
+    // Zone de décharge (3.7V - 3.4V) = 60% - 30%
     {3700, 60}, {3680, 58}, {3660, 56}, {3640, 54}, {3620, 52},
     {3600, 50}, {3580, 48}, {3560, 46}, {3540, 44}, {3520, 42},
     {3500, 40}, {3480, 38}, {3460, 36}, {3440, 34}, {3420, 32},
+    // Zone critique (3.4V - 3.1V) = 30% - 0% - Risque de dommage si inférieur
     {3400, 30}, {3380, 28}, {3360, 26}, {3340, 24}, {3320, 22},
     {3300, 20}, {3280, 18}, {3260, 16}, {3240, 14}, {3220, 12},
     {3200, 10}, {3180, 8}, {3160, 6}, {3140, 4}, {3120, 2}, {3100, 0}
 };
 
-// --- Paramètres réseau et proxy ---
-const char* PROXY_HOST 
-const uint16_t PROXY_PORT
-const char apn[] = SECRET_APN;
-const char gprsUser[] = SECRET_GPRS_USER;
-const char gprsPass[] = SECRET_GPRS_PASS;
+// --- Paramètres réseau et communication ---
+const char* PROXY_HOST    // Adresse IP ou nom d'hôte du serveur proxy (défini dans secrets.h)
+const uint16_t PROXY_PORT // Port TCP du serveur proxy (défini dans secrets.h)
+const char apn[] = SECRET_APN;           // Point d'accès réseau de l'opérateur mobile
+const char gprsUser[] = SECRET_GPRS_USER; // Nom d'utilisateur GPRS (souvent vide)
+const char gprsPass[] = SECRET_GPRS_PASS; // Mot de passe GPRS (souvent vide)
 
-// --- Intervalles (ms) ---
-#define SENSOR_INTERVAL 30000
-#define BATTERY_INTERVAL 10000  // Lecture batterie toutes les 10s
-#define SEND_INTERVAL 15000
+// --- Intervalles temporels pour les tâches périodiques (en millisecondes) ---
+#define SENSOR_INTERVAL 30000   // Lecture des capteurs toutes les 30 secondes
+#define BATTERY_INTERVAL 10000  // Lecture batterie toutes les 10 secondes
+#define SEND_INTERVAL 15000     // Envoi des données toutes les 15 secondes
 
-// --- Structures de données ---
+// --- Structures de données pour organiser les mesures ---
+
+/// Structure contenant toutes les données du capteur inertiel MPU9250
 struct SensorData {
+    // Accéléromètre (g) - détection des mouvements et vibrations
     float ax, ay, az;
+    // Gyroscope (degrés/s) - détection des rotations
     float gx, gy, gz;
+    // Magnétomètre (µT) - boussole numérique
     float mx, my, mz;
+    // Température interne du capteur (°C)
     float temperature;
 } sensorData;
 
+/// Structure contenant toutes les informations de batterie et alimentation
 struct BatteryData {
-    uint32_t voltage_mv;
-    int percentage;
-    bool is_charging;
-    bool valid;
-    uint32_t solar_voltage_mv;
-    String status;
+    uint32_t voltage_mv;       // Tension batterie en millivolts
+    int percentage;            // Pourcentage de charge (0-100%)
+    bool is_charging;          // État de charge (true = en charge)
+    bool valid;               // Validité des données (true = données fiables)
+    uint32_t solar_voltage_mv; // Tension panneau solaire (si présent)
+    String status;            // État textuel ("charging", "discharging", "full", etc.)
 } batteryData;
 
 // --- Variables globales ---
-TinyGPSPlus gps;
-MPU9250_asukiaaa mySensor;
+TinyGPSPlus gps;          // Décodeur GPS pour les trames NMEA
+MPU9250_asukiaaa mySensor; // Interface avec le capteur inertiel
 
-bool mpuInitialized = false;
-bool gpsInitialized = false;
-bool accelValid = false;
-bool gyroValid = false;
-bool magValid = false;
-bool tempValid = false;
-bool gprsConnected = false;
+// Drapeaux d'état des périphériques
+bool mpuInitialized = false;  // Capteur inertiel initialisé avec succès
+bool gpsInitialized = false;  // Module GPS initialisé avec succès
+bool accelValid = false;      // Dernière lecture accéléromètre valide
+bool gyroValid = false;       // Dernière lecture gyroscope valide
+bool magValid = false;        // Dernière lecture magnétomètre valide
+bool tempValid = false;       // Dernière lecture température valide
+bool gprsConnected = false;   // Connexion GPRS/4G active
 
-uint32_t lastSensorRead = 0;
-uint32_t lastBatteryRead = 0;
-uint32_t lastSend = 0;
+// Horodatages pour gestion des tâches périodiques
+uint32_t lastSensorRead = 0; // Dernière lecture des capteurs
+uint32_t lastBatteryRead = 0; // Dernière lecture de la batterie
+uint32_t lastSend = 0;       // Dernier envoi de données
 
 //-----------------------------------------------------------------------------
-// Initialisation hardware
+// Initialisation hardware - Configuration des broches et périphériques
 //-----------------------------------------------------------------------------
 void initializeHardware() {
     Serial.println("🔧 Initialisation hardware...");
     
+    // Activation de l'alimentation principale de la carte (si broche définie)
     #ifdef BOARD_POWERON_PIN
     pinMode(BOARD_POWERON_PIN, OUTPUT);
     digitalWrite(BOARD_POWERON_PIN, HIGH);
     #endif
 
+    // Séquence de reset du modem (si broche définie)
+    // Reset matériel pour s'assurer d'un état propre au démarrage
     #ifdef MODEM_RESET_PIN
     pinMode(MODEM_RESET_PIN, OUTPUT);
-    digitalWrite(MODEM_RESET_PIN, !MODEM_RESET_LEVEL);
-    delay(50);
-    digitalWrite(MODEM_RESET_PIN, MODEM_RESET_LEVEL);
-    delay(1000);
-    digitalWrite(MODEM_RESET_PIN, !MODEM_RESET_LEVEL);
+    digitalWrite(MODEM_RESET_PIN, !MODEM_RESET_LEVEL); // État inactif
+    delay(50);                                         // Attente stabilisation
+    digitalWrite(MODEM_RESET_PIN, MODEM_RESET_LEVEL);  // Activation reset
+    delay(1000);                                       // Reset pendant 1s
+    digitalWrite(MODEM_RESET_PIN, !MODEM_RESET_LEVEL); // Libération reset
     #endif
 
+    // Séquence de démarrage du modem via PWRKEY
+    // Le modem A7670E nécessite un pulse sur PWRKEY pour démarrer
     pinMode(BOARD_PWRKEY_PIN, OUTPUT);
-    digitalWrite(BOARD_PWRKEY_PIN, LOW); delay(50);
-    digitalWrite(BOARD_PWRKEY_PIN, HIGH); delay(500);
-    digitalWrite(BOARD_PWRKEY_PIN, LOW);
+    digitalWrite(BOARD_PWRKEY_PIN, LOW);  // Préparation pulse
+    delay(50);
+    digitalWrite(BOARD_PWRKEY_PIN, HIGH); // Pulse de démarrage
+    delay(500);                           // Maintien pendant 500ms
+    digitalWrite(BOARD_PWRKEY_PIN, LOW);  // Fin du pulse
 
+    // Initialisation du port série pour communication avec le modem
+    // Utilise les broches définies dans utilities.h selon la carte
     SerialAT.begin(MODEM_BAUDRATE, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
     delay(100);
 
+    // Initialisation du bus I2C pour les capteurs (MPU9250)
+    // Configuration avec broches et fréquence définies plus haut
     Wire.begin(SDA_PIN, SCL_PIN, I2C_CLOCK_SPEED);
     delay(100);
 
-    // Configuration ADC pour la batterie[11][14][27]
-    analogSetAttenuation(ADC_11db);  // 150mV ~ 2450mV
-    analogReadResolution(12);        // 12-bit (0-4095)
+    // Configuration de l'ADC (Analog-to-Digital Converter) pour lecture batterie
+    analogSetAttenuation(ADC_11db);  // Plage 150mV ~ 2450mV pour ESP32
+    analogReadResolution(12);        // Résolution 12-bit (0-4095 valeurs)
     #if CONFIG_IDF_TARGET_ESP32
-    analogSetWidth(12);
+    analogSetWidth(12);              // Largeur 12-bit (spécifique ESP32 classique)
     #endif
 }
 
