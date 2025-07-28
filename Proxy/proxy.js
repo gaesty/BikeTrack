@@ -24,9 +24,9 @@ const app     = express()          // Instance de l'application Express
 app.use(express.json())
 
 // Configuration Supabase - Paramètres de connexion à la base de données
-const SUPABASE_URL     = 'https://oynnjhnjyeogltujthcy.supabase.co/rest/v1/sensor_data'
+const SUPABASE_URL     = {SUPABASE_URL}
 // Clé API anonyme Supabase (permet l'insertion avec les politiques RLS)
-const SUPABASE_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95bm5qaG5qeWVvZ2x0dWp0aGN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzMzIwNTgsImV4cCI6MjA2NTkwODA1OH0.eP28KmebtF0AmUdkUcnzLuRhl4uMnkYJfIaHZ4nHFl4'
+const SUPABASE_API_KEY = {SUPABASE_API_KEY}
 
 /**
  * Route POST /proxy
